@@ -52,7 +52,7 @@ class GSV_Dataset(Dataset):
         img = path_to_pil_img(img_path)
         if self.transform:
             img = self.transform(img)
-        return img, img_path
+        return img, os.path.basename(img_path)
 
 
 if __name__ == "__main__":
@@ -64,10 +64,12 @@ if __name__ == "__main__":
     )
 
     gsv_ds = GSV_Dataset(
-        "/home/rise/sdc2T/XJH/Geo-Loc/geo-loc-data/data/manville-panos/pov",
+        "/home/rise/XJH/Geo-Loc/geo-loc-data/data/manville-panos/pov",
         transform=base_transform,
     )
 
-    gsv_dl = DataLoader(gsv_ds, batch_size=1, shuffle=False)
+    gsv_dl = DataLoader(gsv_ds, batch_size=10, shuffle=False)
+    for i, (img, img_path) in enumerate(gsv_dl):
+        print(i, img.shape, img_path)
 
     print("DONE")
