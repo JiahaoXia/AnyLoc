@@ -103,8 +103,19 @@ def main():
                 "image_paths", (0,), maxshape=(None,), dtype=h5py.string_dtype()
             )
             features_dataset = f.create_dataset(
-                "features", (0,), maxshape=(None,), dtype=np.float32
-            )  # Assume 128 feature dimensions for example
+                "features",
+                (
+                    0,
+                    0,
+                    0,
+                ),
+                maxshape=(
+                    None,
+                    None,
+                    None,
+                ),
+                dtype=np.float16,
+            )
         else:
             img_paths_dataset = f["image_paths"]
             features_dataset = f["features"]
@@ -124,12 +135,16 @@ def main():
                 h_new, w_new = (h // 14) * 14, (w // 14) * 14
                 img = tvf.CenterCrop((h_new, w_new))(img)
                 ret = extractor(img).cpu().numpy()  # [bs, num_patches, desc_dim]
+                # Get num_patches and desc_dim dynamically from the current batch
+                num_patches, desc_dim = ret.shape[1], ret.shape[2]
 
                 # Resize datasets to add new data
                 img_paths_dataset.resize((img_paths_dataset.shape[0] + len(img_path),))
                 img_paths_dataset[-len(img_path) :] = img_path
 
-                features_dataset.resize((features_dataset.shape[0] + ret.shape[0],))
+                features_dataset.resize(
+                    (features_dataset.shape[0] + ret.shape[0], num_patches, desc_dim)
+                )
                 features_dataset[-ret.shape[0] :] = ret
             except Exception as e:
                 print(f"Error processing batch {idx}: {e}")
