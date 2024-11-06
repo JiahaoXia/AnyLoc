@@ -1,5 +1,5 @@
 import os, sys
-from os.path import dirname, abspath, join, exists
+from os.path import dirname, abspath, join, exists, basename
 import argparse
 import yaml
 from custom_datasets.gsv import GSV_Dataset
@@ -7,7 +7,6 @@ import torch
 from torchvision import transforms as tvf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from utilities import DinoV2ExtractFeatures
 import h5py
 import numpy as np
 
@@ -25,7 +24,7 @@ def get_opts():
         "--model_cfg_file",
         type=str,
         help="path to the model configuration file",
-        default="/home/rise/XJH/Geo-Loc/config/dinov2.yaml",
+        default="/home/rise/XJH/Geo-Loc/config/AnyLoc-VLAD-DINOv2.yaml",
     )
     parser.add_argument(
         "--bs",
@@ -61,12 +60,13 @@ def main():
         cfg = yaml.safe_load(file)
 
     # Extract parameters from the configuration
-    dino_model = cfg.get("dino_model")
-    layer = cfg.get("layer")
-    facet = cfg.get("facet")
-    use_cls = cfg.get("use_cls")
-    norm_descs = cfg.get("norm_descs")
-    output_folder = f"{dino_model}---{layer}---{facet}---use_cls[{use_cls}]---norm_descs[{norm_descs}]"
+    domain = cfg.get("domain")
+    backbone = cfg.get("backbone")
+    vit_model = cfg.get("vit_model")
+    vit_layer = cfg.get("vit_layer")
+    vit_facet = cfg.get("vit_facet")
+    num_c = cfg.get("num_c")
+    output_folder = f"{basename(args.input_dir)}---{domain}---{backbone}---{vit_model}---layer[{vit_layer}]---facet[{vit_facet}]---num_c[{num_c}]"
     if not exists(join(args.output_dir, output_folder)):
         os.makedirs(join(args.output_dir, output_folder))
     output_path = join(args.output_dir, output_folder)
@@ -78,6 +78,7 @@ def main():
     # Load the dataset
     base_transform = tvf.Compose(
         [
+            tvf.Resize((400, 800)),
             tvf.ToTensor(),
             tvf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
@@ -88,8 +89,16 @@ def main():
     # Load the DINOv2 model
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-    extractor = DinoV2ExtractFeatures(
-        dino_model, layer, facet, use_cls=use_cls, norm_descs=norm_descs, device=device
+    extractor = torch.hub.load(
+        "AnyLoc/DINO",
+        "get_vlad_model",
+        domain=domain,
+        backbone=backbone,
+        vit_model=vit_model,
+        vit_layer=vit_layer,
+        vit_facet=vit_facet,
+        num_c=num_c,
+        device=device,
     )
     # HDF5 file path
     hdf5_path = os.path.join(output_path, "features_and_paths.h5")
@@ -107,10 +116,8 @@ def main():
                 (
                     0,
                     0,
-                    0,
                 ),
                 maxshape=(
-                    None,
                     None,
                     None,
                 ),
@@ -134,16 +141,16 @@ def main():
                 bn, c, h, w = img.shape
                 h_new, w_new = (h // 14) * 14, (w // 14) * 14
                 img = tvf.CenterCrop((h_new, w_new))(img)
-                ret = extractor(img).cpu().numpy()  # [bs, num_patches, desc_dim]
-                # Get num_patches and desc_dim dynamically from the current batch
-                num_patches, desc_dim = ret.shape[1], ret.shape[2]
+                ret = extractor(img).cpu().numpy()  # [bs, desc_dim]
+                # Get desc_dim dynamically from the current batch
+                desc_dim = ret.shape[1]
 
                 # Resize datasets to add new data
                 img_paths_dataset.resize((img_paths_dataset.shape[0] + len(img_path),))
                 img_paths_dataset[-len(img_path) :] = img_path
 
                 features_dataset.resize(
-                    (features_dataset.shape[0] + ret.shape[0], num_patches, desc_dim)
+                    (features_dataset.shape[0] + ret.shape[0], desc_dim)
                 )
                 features_dataset[-ret.shape[0] :] = ret
             except Exception as e:
