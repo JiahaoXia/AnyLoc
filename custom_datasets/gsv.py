@@ -38,8 +38,9 @@ class GSV_Dataset(Dataset):
 
         self.image_paths = natsorted(
             [
-                os.path.join(root, f)
-                for f in os.listdir(root)
+                os.path.join(dp, f)
+                for dp, dn, filenames in os.walk(root)
+                for f in filenames
                 if f.endswith(".jpg") or f.endswith(".png")
             ]
         )
