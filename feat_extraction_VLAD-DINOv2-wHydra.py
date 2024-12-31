@@ -10,6 +10,9 @@ from tqdm import tqdm
 import h5py
 import numpy as np
 
+from omegaconf import DictConfig, OmegaConf
+import hydra
+
 
 def get_opts():
     parser = argparse.ArgumentParser()
@@ -48,16 +51,20 @@ def get_opts():
     return parser.parse_args()
 
 
-def main():
-    args = get_opts()
-    torch.hub.set_dir(args.torch_hub_dir)
+# @hydra.main(
+#     version_base=None,
+#     config_path="/home/rise/XJH/Geo-Loc/config/DINOv2/satellite",
+#     config_name="cranford",
+# )
+@hydra.main(version_base=None)
+def main(cfg):
+    print("============START============")
+    print(OmegaConf.to_yaml(cfg))
 
-    if not exists(args.output_dir):
-        os.makedirs(args.output_dir)
+    torch.hub.set_dir(cfg.torch_hub_dir)
 
-    # Read the YAML configuration
-    with open(args.model_cfg_file, "r") as file:
-        cfg = yaml.safe_load(file)
+    if not exists(cfg.output_dir):
+        os.makedirs(cfg.output_dir)
 
     # Extract parameters from the configuration
     domain = cfg.get("domain")
@@ -66,25 +73,25 @@ def main():
     vit_layer = cfg.get("vit_layer")
     vit_facet = cfg.get("vit_facet")
     num_c = cfg.get("num_c")
-    output_folder = f"{basename(args.input_dir)}---{domain}---{backbone}---{vit_model}---layer[{vit_layer}]---facet[{vit_facet}]---num_c[{num_c}]"
-    if not exists(join(args.output_dir, output_folder)):
-        os.makedirs(join(args.output_dir, output_folder))
-    output_path = join(args.output_dir, output_folder)
+    output_folder = f"{basename(cfg.input_dir)}---{domain}---{backbone}---{vit_model}---layer[{vit_layer}]---facet[{vit_facet}]---num_c[{num_c}]"
+    if not exists(join(cfg.output_dir, output_folder)):
+        os.makedirs(join(cfg.output_dir, output_folder))
+    output_path = join(cfg.output_dir, output_folder)
 
     # Save the YAML configuration to the output path
     with open(join(output_path, "model-cfg.yaml"), "w") as file:
-        yaml.safe_dump(cfg, file)
+        yaml.safe_dump(OmegaConf.to_container(cfg, resolve=True), file)
 
     # Load the dataset
     base_transform = tvf.Compose(
         [
-            tvf.Resize((400, 800)),
+            tvf.Resize(tuple(cfg.resize)),
             tvf.ToTensor(),
             tvf.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-    gsv_ds = GSV_Dataset(args.input_dir, transform=base_transform)
-    gsv_dl = DataLoader(gsv_ds, batch_size=args.bs, shuffle=False)
+    gsv_ds = GSV_Dataset(cfg.input_dir, transform=base_transform)
+    gsv_dl = DataLoader(gsv_ds, batch_size=cfg.bs, shuffle=False)
 
     # Load the DINOv2 model
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
