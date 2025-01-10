@@ -53,7 +53,7 @@ def get_opts():
 
 # @hydra.main(
 #     version_base=None,
-#     config_path="/home/rise/XJH/Geo-Loc/config/DINOv2/satellite",
+#     config_path="/home/rise/XJH/Geo-Loc/config/DINOv2/satellite/gt",
 #     config_name="cranford",
 # )
 @hydra.main(version_base=None)
@@ -73,7 +73,10 @@ def main(cfg):
     vit_layer = cfg.get("vit_layer")
     vit_facet = cfg.get("vit_facet")
     num_c = cfg.get("num_c")
-    output_folder = f"{basename(cfg.input_dir)}---{domain}---{backbone}---{vit_model}---layer[{vit_layer}]---facet[{vit_facet}]---num_c[{num_c}]"
+    if "basename" not in cfg:
+        output_folder = f"{basename(cfg.input_dir)}---{domain}---{backbone}---{vit_model}---layer[{vit_layer}]---facet[{vit_facet}]---num_c[{num_c}]"
+    else:
+        output_folder = f"{cfg.basename}---{domain}---{backbone}---{vit_model}---layer[{vit_layer}]---facet[{vit_facet}]---num_c[{num_c}]"
     if not exists(join(cfg.output_dir, output_folder)):
         os.makedirs(join(cfg.output_dir, output_folder))
     output_path = join(cfg.output_dir, output_folder)
